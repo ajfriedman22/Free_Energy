@@ -132,7 +132,7 @@ if TI_check == True or ALL_check == True:
     ax = plot_convergence(forward, forward_error, backward, backward_error)
     ax.figure.savefig('Convergence_TI.png')
 
-if MBAR_check == True or ALL_check:
+if MBAR_check == True or ALL_check == True:
     #Output MBAR error for all lambdas
     output_all.write('MBAR Free Energy Error\n')
     output_all.write(str(mbar.d_delta_f_) + '\n')
