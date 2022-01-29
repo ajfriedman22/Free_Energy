@@ -31,7 +31,10 @@ time_value = np.linspace(eq_time*2, run_time, num = 25)
 
 #Declare array for TI and MBAR 
 TI_est = np.zeros(25)
+TI_est_err = np.zeros(25)
 MBAR_est = np.zeros(25)
+MBAR_est_err = np.zeros(25)
+
 
 #Loop over time values
 for i in range(len(time_value)):
@@ -50,8 +53,15 @@ for i in range(len(time_value)):
     df.columns = l
     est = df.loc[0, 1]
     
+    #Change labels for error estimates
+    df_err = ti.d_delta_f_
+    df_err.index = l
+    df_err.columns = l
+    est_err = df_err.loc[0, 1]
+
     #Save FE Difference
     TI_est[i] = est
+    TI_est_err[i] = est_err
 
     #Obtain u_nk reduced potentials and remove uncorrelated samples
     u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=t, step=2000) for xvg in lambda_list])
@@ -67,15 +77,24 @@ for i in range(len(time_value)):
     df.columns = l
     est = df.loc[0, 1]
     
+    #Change labels for error estimates
+    df_err = mbar.d_delta_f_
+    df_err.index = l
+    df_err.columns = l
+    est_err = df_err.loc[0, 1]
+
     #Save FE Difference
     MBAR_est[i] = est
+    MBAR_est_err[i] = est_err
 
 #Plot comparison
 fig = plt.figure()
 plt.plot(time_value, TI_est, color = 'red')
+plt.fill_between(time_value, TI_est - TI_est_err, TI_est + TI_est_err, color = 'red', alpha = 0.2)
 plt.scatter(time_value, TI_est, color = 'red', Label = 'TI')
-plt.plot(time_value, TI_est, color = 'blue')
-plt.scatter(time_value, TI_est, color = 'blue', Label = 'MBAR')
+plt.plot(time_value, MBAR_est, color = 'blue')
+plt.fill_between(time_value, MBAR_est - MBAR_est_err, MBAR_est + MBAR_est_err, color = 'blue', alpha = 0.2)
+plt.scatter(time_value, MBAR_est, color = 'blue', Label = 'MBAR')
 plt.legend(loc='best')
 plt.xlabel('Trajectory Run Time (ps)')
 plt.ylabel('Free Energy Estimate (kJ/mol)')
