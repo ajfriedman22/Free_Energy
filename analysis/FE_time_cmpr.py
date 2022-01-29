@@ -3,6 +3,7 @@ import pandas as pd
 from alchemlyb.estimators import TI, MBAR, BAR, AutoMBAR
 from alchemlyb import concat
 from alchemlyb.preprocessing.subsampling import statistical_inefficiency, slicing
+import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
@@ -41,8 +42,16 @@ for i in range(len(time_value)):
     #TI Free Energy Estimate
     ti = TI().fit(dHdl)
 
+    #Change labels to fit syntax for dataframe
+    j = n_state - 1
+    l = np.linspace(0, 1, num=n_state)
+    df = ti.delta_f_
+    df.index = l
+    df.columns = l
+    est = df.loc[0, 1]
+    
     #Save FE Difference
-    TI_est[i] = ti.delta_f_.loc[(0.0, 0.0, 0.0, 0.0, 0.0), (0.0, 1.0, 1.0, 1.0, 0.0)]
+    TI_est[i] = est
 
     #Obtain u_nk reduced potentials and remove uncorrelated samples
     u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=t, step=2000) for xvg in lambda_list])
@@ -50,8 +59,16 @@ for i in range(len(time_value)):
     #MBAR FE Estimates
     mbar = AutoMBAR(relative_tolerance=1e-04).fit(u_nk)
 
-    #Free energy difference for each lambda window
-    MBAR_est[i] = mbar.delta_f_.loc[(0.0, 0.0, 0.0, 0.0, 0.0), (0.0, 1.0, 1.0, 1.0, 0.0)]
+    #Change labels to fit syntax for dataframe
+    j = n_state - 1
+    l = np.linspace(0, 1, num=n_state)
+    df = mbar.delta_f_
+    df.index = l
+    df.columns = l
+    est = df.loc[0, 1]
+    
+    #Save FE Difference
+    MBAR_est[i] = est
 
 #Plot comparison
 fig = plt.figure()
