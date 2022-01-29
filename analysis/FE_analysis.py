@@ -5,7 +5,7 @@ from alchemlyb.estimators import TI, MBAR, BAR, AutoMBAR
 from alchemlyb import concat
 from alchemlyb.visualisation import plot_mbar_overlap_matrix, plot_ti_dhdl, plot_convergence
 from alchemlyb.visualisation.dF_state import plot_dF_state
-from alchemlyb.preprocessing.subsampling import statistical_inefficiency, slicing
+from alchemlyb.preprocessing.subsampling import statistical_inefficiency, equilibrium_detection
 import argparse
 
 #Import necessary arguments
@@ -54,13 +54,13 @@ if TI_check == True or ALL_check == True:
     df_ti = ti.delta_f_
     df_ti.index = l
     df_ti.columns = l
-    TI_est = df_ti.loc[0, 1]
+    TI_est = np.round(df_ti.loc[0, 1], decimals = 3)
     
     #Change labels for error estimates
     df_ti_err = ti.d_delta_f_
     df_ti_err.index = l
     df_ti_err.columns = l
-    TI_est_err = df_ti_err.loc[0, 1]
+    TI_est_err = np.round(df_ti_err.loc[0, 1], decimals = 3)
 
     #Output Free Energy Differnece
     output.write('TI Estimate: ' + str(TI_est) + ' +/- ' + str(TI_est_err) + '\n')
@@ -83,13 +83,13 @@ if MBAR_check == True or ALL_check:
     df_mbar = mbar.delta_f_
     df_mbar.index = l
     df_mbar.columns = l
-    MBAR_est = df_mbar.loc[0, 1]
+    MBAR_est = np.round(df_mbar.loc[0, 1], decimals = 3)
     
     #Change labels for error estimates
     df_mbar_err = mbar.d_delta_f_
     df_mbar_err.index = l
     df_mbar_err.columns = l
-    MBAR_est_err = df_mbar_err.loc[0, 1]
+    MBAR_est_err = np.round(df_mbar_err.loc[0, 1], decimals = 3)
 
     #Output Free Energy Differnece
     output.write('MBAR Estimate: ' + str(MBAR_est) + ' +/- ' + str(MBAR_est_err) + '\n')
