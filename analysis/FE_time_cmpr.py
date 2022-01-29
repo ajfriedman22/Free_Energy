@@ -34,6 +34,8 @@ TI_est = np.zeros(25)
 TI_est_err = np.zeros(25)
 MBAR_est = np.zeros(25)
 MBAR_est_err = np.zeros(25)
+BAR_est = np.zeros(25)
+BAR_est_err = np.zeros(25)
 
 
 #Loop over time values
@@ -70,8 +72,6 @@ for i in range(len(time_value)):
     mbar = AutoMBAR(relative_tolerance=1e-04).fit(u_nk)
 
     #Change labels to fit syntax for dataframe
-    j = n_state - 1
-    l = np.linspace(0, 1, num=n_state)
     df = mbar.delta_f_
     df.index = l
     df.columns = l
@@ -86,6 +86,26 @@ for i in range(len(time_value)):
     #Save FE Difference
     MBAR_est[i] = est
     MBAR_est_err[i] = est_err
+    
+    #BAR FE Estimates
+    bar = BAR().fit(u_nk)
+    
+    #Change labels to fit syntax for dataframe
+    df = bar.delta_f_
+    df.index = l
+    df.columns = l
+    est = df.loc[0, 1]
+    
+    #Change labels for error estimates
+    df_err = bar.d_delta_f_
+    df_err.index = l
+    df_err.columns = l
+    est_err = df_err.loc[0, 1]
+
+    #Save FE Difference
+    BAR_est[i] = est
+    BAR_est_err[i] = est_err
+
 
 #Plot comparison
 fig = plt.figure()
@@ -95,6 +115,9 @@ plt.scatter(time_value, TI_est, color = 'red', Label = 'TI')
 plt.plot(time_value, MBAR_est, color = 'blue')
 plt.fill_between(time_value, MBAR_est - MBAR_est_err, MBAR_est + MBAR_est_err, color = 'blue', alpha = 0.2)
 plt.scatter(time_value, MBAR_est, color = 'blue', Label = 'MBAR')
+plt.plot(time_value, BAR_est, color = 'gray')
+plt.fill_between(time_value, BAR_est - BAR_est_err, BAR_est + BAR_est_err, color = 'gray', alpha = 0.2)
+plt.scatter(time_value, BAR_est, color = 'gray', Label = 'BAR')
 plt.legend(loc='best')
 plt.xlabel('Trajectory Run Time (ps)')
 plt.ylabel('Free Energy Estimate (kJ/mol)')
