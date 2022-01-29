@@ -65,7 +65,7 @@ if TI_check == True or ALL_check == True:
     #Output Free Energy Differnece
     output.write('TI Estimate: ' + str(TI_est) + ' +/- ' + str(TI_est_err) + '\n')
 
-if MBAR_check == True or ALL_check:
+if MBAR_check == True or ALL_check == True:
    #Obtain u_nk reduced potentials and remove uncorrelated samples
     u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=run_time, step=2000) for xvg in lambda_list])
 
@@ -102,7 +102,7 @@ if ALL_check == True:
 
 #Error and Analysis
 output.write('---------------------------------------------\n')
-if TI_check == True or ALL_check:
+if TI_check == True or ALL_check == True:
     #Output TI Error for all lambdas
     output_all.write('TI Free Energy Error\n')
     output_all.write(str(ti.d_delta_f_) + '\n')
