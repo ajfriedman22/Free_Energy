@@ -98,7 +98,7 @@ if MBAR_check == True or ALL_check:
 if ALL_check == True:
     estimators = [ti, mbar, bar,]
     fig = plot_dF_state(estimators, orientation='portrait')
-    fig.savefig('dF_state.pdf', bbox_inches='tight')
+    fig.savefig('dF_state.png', bbox_inches='tight')
 
 #Error and Analysis
 output.write('---------------------------------------------\n')
