@@ -14,8 +14,8 @@ parser.add_argument('-n', required=True, type = int, help='Number of Lambda Stat
 parser.add_argument('-t', required=False, type = bool, default = True, help='Should TI estimate be completed?')
 parser.add_argument('-m', required=False, type = bool, default = True, help='Should MBAR estimate be completed?')
 parser.add_argument('-a', required=False, type = bool, default = True, help='Should TI, MBAR, and BAR estimates be completed?')
-parser.add_argument('-r', required=True, type = int, help='Total Run Time(ps)')
-parser.add_argument('-e', required=True, type = int, help='Time at Which equilibrium was reached (ps)')
+parser.add_argument('-r', required=True, type = float, help='Total Run Time(ps)')
+parser.add_argument('-e', required=True, type = float, help='Time at Which equilibrium was reached (ps)')
 
 #Save imported arguments to variables
 args = parser.parse_args()
