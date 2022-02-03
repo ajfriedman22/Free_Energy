@@ -43,21 +43,25 @@ if TI_check == True or ALL_check == True:
 
     #TI Free Energy Estimate
     ti = TI().fit(dHdl)
+    
+    #Convert Units to Kcal/mol
+    delta_f_ = to_kcalmol(ti.delta_f_)
+    d_delta_f = to_kcalmol(ti.d_delta_f)
 
     #Free energy difference for each lambda window
     output_all.write('TI:\n')
-    output_all.write(str(ti.delta_f_) + '\n')
+    output_all.write(str(delta_f_) + '\n')
     
     #Change labels to fit syntax for estimates dataframe
     j = n_state - 1
     l = np.linspace(0, 1, num=n_state)
-    df_ti = ti.delta_f_
+    df_ti = delta_f_
     df_ti.index = l
     df_ti.columns = l
     TI_est = np.round(df_ti.loc[0, 1], decimals = 3)
     
     #Change labels for error estimates
-    df_ti_err = ti.d_delta_f_
+    df_ti_err = d_delta_f_
     df_ti_err.index = l
     df_ti_err.columns = l
     TI_est_err = np.round(df_ti_err.loc[0, 1], decimals = 3)
@@ -65,6 +69,11 @@ if TI_check == True or ALL_check == True:
     #Output Free Energy Differnece
     output.write('TI Estimate: ' + str(TI_est) + ' +/- ' + str(TI_est_err) + '\n')
 
+    #Output TI Error for all lambdas
+    output_all.write('TI Free Energy Error\n')
+    output_all.write(str(d_delta_f_) + '\n')
+
+output.write('---------------------------------------------\n')
 if MBAR_check == True or ALL_check == True:
    #Obtain u_nk reduced potentials and remove uncorrelated samples
     u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=run_time, step=2000) for xvg in lambda_list])
@@ -73,20 +82,24 @@ if MBAR_check == True or ALL_check == True:
     mbar = AutoMBAR(relative_tolerance=1e-04).fit(u_nk)
     bar = BAR().fit(u_nk)
 
+    #Convert Units to Kcal/mol
+    delta_f_ = to_kcalmol(mbar.delta_f_)
+    d_delta_f = to_kcalmol(mbar.d_delta_f)
+
     #Free energy difference for each lambda window
     output_all.write('MBAR:\n')
-    output_all.write(str(mbar.delta_f_) + '\n')
+    output_all.write(str(delta_f_) + '\n')
 
     #Change labels to fit syntax for estimates dataframe
     j = n_state - 1
     l = np.linspace(0, 1, num=n_state)
-    df_mbar = mbar.delta_f_
+    df_mbar = delta_f_
     df_mbar.index = l
     df_mbar.columns = l
     MBAR_est = np.round(df_mbar.loc[0, 1], decimals = 3)
     
     #Change labels for error estimates
-    df_mbar_err = mbar.d_delta_f_
+    df_mbar_err = d_delta_f_
     df_mbar_err.index = l
     df_mbar_err.columns = l
     MBAR_est_err = np.round(df_mbar_err.loc[0, 1], decimals = 3)
@@ -101,11 +114,7 @@ if ALL_check == True:
     fig.savefig('dF_state.png', bbox_inches='tight')
 
 #Error and Analysis
-output.write('---------------------------------------------\n')
 if TI_check == True or ALL_check == True:
-    #Output TI Error for all lambdas
-    output_all.write('TI Free Energy Error\n')
-    output_all.write(str(ti.d_delta_f_) + '\n')
     #Plot dhdl of the TI
     ax = plot_ti_dhdl([ti])
     ax.figure.savefig('dhdl_TI.png')
