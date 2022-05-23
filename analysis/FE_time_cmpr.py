@@ -24,7 +24,6 @@ eq_time = args.e
 lambda_list = []
 for i in range(n_state):
     lambda_list.append('dhdl' + str(i) + '.xvg')
-print(lambda_list)
 
 #Time List
 time_value = np.linspace(eq_time*2, run_time, num = 25)
@@ -106,20 +105,24 @@ for i in range(len(time_value)):
     BAR_est[i] = est
     BAR_est_err[i] = est_err
 
+#Convert time to ns for plot
+time_ns = np.zeros(len(time_value))
+for i in range(len(time_value)):
+    time_ns[i] = time_value[i]/1000
 
 #Plot comparison
 fig = plt.figure()
-plt.plot(time_value, TI_est, color = 'red')
-plt.fill_between(time_value, TI_est - TI_est_err, TI_est + TI_est_err, color = 'red', alpha = 0.2)
-plt.scatter(time_value, TI_est, color = 'red', Label = 'TI')
-plt.plot(time_value, MBAR_est, color = 'blue')
-plt.fill_between(time_value, MBAR_est - MBAR_est_err, MBAR_est + MBAR_est_err, color = 'blue', alpha = 0.2)
-plt.scatter(time_value, MBAR_est, color = 'blue', Label = 'MBAR')
-plt.plot(time_value, BAR_est, color = 'gray')
-plt.fill_between(time_value, BAR_est - BAR_est_err, BAR_est + BAR_est_err, color = 'gray', alpha = 0.2)
-plt.scatter(time_value, BAR_est, color = 'gray', Label = 'BAR')
+plt.plot(time_ns, TI_est, color = 'red')
+plt.fill_between(time_ns, TI_est - TI_est_err, TI_est + TI_est_err, color = 'red', alpha = 0.2)
+plt.scatter(time_ns, TI_est, color = 'red', Label = 'TI')
+plt.plot(time_ns, MBAR_est, color = 'blue')
+plt.fill_between(time_ns, MBAR_est - MBAR_est_err, MBAR_est + MBAR_est_err, color = 'blue', alpha = 0.2)
+plt.scatter(time_ns, MBAR_est, color = 'blue', Label = 'MBAR')
+plt.plot(time_ns, BAR_est, color = 'gray')
+plt.fill_between(time_ns, BAR_est - BAR_est_err, BAR_est + BAR_est_err, color = 'gray', alpha = 0.2)
+plt.scatter(time_ns, BAR_est, color = 'gray', Label = 'BAR')
 plt.legend(loc='best')
-plt.xlabel('Trajectory Run Time (ps)')
+plt.xlabel('Trajectory Run Time (ns)')
 plt.ylabel('Free Energy Estimate (kJ/mol)')
 fig.savefig('Time_comparison.png')
 
