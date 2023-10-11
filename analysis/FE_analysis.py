@@ -6,6 +6,7 @@ from alchemlyb import concat
 from alchemlyb.visualisation import plot_mbar_overlap_matrix, plot_ti_dhdl, plot_convergence
 from alchemlyb.visualisation.dF_state import plot_dF_state
 from alchemlyb.preprocessing.subsampling import statistical_inefficiency, equilibrium_detection
+from alchemlyb.postprocessors.units import to_kcalmol
 import argparse
 
 #Import necessary arguments
@@ -45,23 +46,23 @@ if TI_check == True or ALL_check == True:
     ti = TI().fit(dHdl)
     
     #Convert Units to Kcal/mol
-    delta_f_ = to_kcalmol(ti.delta_f_)
-    d_delta_f = to_kcalmol(ti.d_delta_f)
+    ti_kcal = to_kcalmol(ti.delta_f_, T=300)
+    dti_kcal = to_kcalmol(ti.d_delta_f_, T=300)
 
     #Free energy difference for each lambda window
     output_all.write('TI:\n')
-    output_all.write(str(delta_f_) + '\n')
+    output_all.write(str(ti_kcal) + '\n')
     
     #Change labels to fit syntax for estimates dataframe
     j = n_state - 1
     l = np.linspace(0, 1, num=n_state)
-    df_ti = delta_f_
+    df_ti = ti_kcal
     df_ti.index = l
     df_ti.columns = l
     TI_est = np.round(df_ti.loc[0, 1], decimals = 3)
     
     #Change labels for error estimates
-    df_ti_err = d_delta_f_
+    df_ti_err = dti_kcal
     df_ti_err.index = l
     df_ti_err.columns = l
     TI_est_err = np.round(df_ti_err.loc[0, 1], decimals = 3)
@@ -71,7 +72,7 @@ if TI_check == True or ALL_check == True:
 
     #Output TI Error for all lambdas
     output_all.write('TI Free Energy Error\n')
-    output_all.write(str(d_delta_f_) + '\n')
+    output_all.write(str(dti_kcal) + '\n')
 
 output.write('---------------------------------------------\n')
 if MBAR_check == True or ALL_check == True:
@@ -83,29 +84,32 @@ if MBAR_check == True or ALL_check == True:
     bar = BAR().fit(u_nk)
 
     #Convert Units to Kcal/mol
-    delta_f_ = to_kcalmol(mbar.delta_f_)
-    d_delta_f = to_kcalmol(mbar.d_delta_f)
+    mbar_kcal = to_kcalmol(mbar.delta_f_, T=300)
+    dmbar_kcal = to_kcalmol(mbar.d_delta_f_, T=300)
 
     #Free energy difference for each lambda window
     output_all.write('MBAR:\n')
-    output_all.write(str(delta_f_) + '\n')
+    output_all.write(str(mbar_kcal) + '\n')
 
     #Change labels to fit syntax for estimates dataframe
     j = n_state - 1
     l = np.linspace(0, 1, num=n_state)
-    df_mbar = delta_f_
+    df_mbar = mbar_kcal
     df_mbar.index = l
     df_mbar.columns = l
     MBAR_est = np.round(df_mbar.loc[0, 1], decimals = 3)
     
     #Change labels for error estimates
-    df_mbar_err = d_delta_f_
+    df_mbar_err = dmbar_kcal
     df_mbar_err.index = l
     df_mbar_err.columns = l
     MBAR_est_err = np.round(df_mbar_err.loc[0, 1], decimals = 3)
 
     #Output Free Energy Differnece
     output.write('MBAR Estimate: ' + str(MBAR_est) + ' +/- ' + str(MBAR_est_err) + '\n')
+
+#Close files
+output.close()
 
 #Compare different Estimators
 if ALL_check == True:
