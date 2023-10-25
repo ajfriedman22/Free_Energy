@@ -16,6 +16,37 @@ def get_estimate(df):
     df.columns = l
     est = np.round(df.loc[0, 1], decimals = 3)
     return est
+
+def convergence(estimator):
+    if estimator == 'TI':
+        data_list = [statistical_inefficiency(extract_dHdl(xvg, T=temp), lower=eq_time, upper=run_time) for xvg in lambda_list]
+        est = TI()
+    else:
+        data_list = [statistical_inefficiency(extract_u_nk(xvg, T=temp), lower=eq_time, upper=run_time) for xvg in lambda_list]
+        est = MBAR()
+            
+    forward, forward_error, backward, backward_error = [], [], [], []
+    num_points = 10
+    for i in range(1, num_points+1):
+        # Do the forward
+        slice = int(len(data_list[0])/num_points*i)
+        data = concat([data[:slice] for data in data_list])
+        estimate = est.fit(data)
+        #Add estimates
+        forward.append(get_estimate(estimate.delta_f_))
+        forward_error.append(get_estimate(estimate.d_delta_f_))
+        # Do the backward
+        data = concat([data[-slice:] for data in data_list])
+        estimate = est.fit(data)
+        #Add estimates
+        backward.append(get_estimate(estimate.delta_f_))
+        backward_error.append(get_estimate(estimate.d_delta_f_))
+    df = pd.DataFrame({'Forward': forward, 'Forward_Error': forward_error, 'Backward': backward, 'Backward Error': backward_error})
+    df.attrs['temperature'] = temp
+    df.attrs['energy_unit'] = 'kT'
+    ax = plot_convergence(df, units='kcal/mol')
+    ax.figure.savefig(f'Convergence_{estimator}.png')
+
 #Import necessary arguments
 parser = argparse.ArgumentParser(description = 'Free Energy Analysis using MBAR, BAR, and TI')
 parser.add_argument('-f', required=False, type = str, default = 'dhdl.xvg', help='File path for xvg file ex: output/dhdl0.xvg and output/dhdl1.xvg--> output/dhdl')
@@ -125,25 +156,8 @@ if estimator.lower() == 'ti' or estimator.lower() == 'all':
     #Plot dhdl of the TI
     ax = plot_ti_dhdl([ti])
     ax.figure.savefig('dhdl_TI.png')
-    #Forward and Backward Convergence for Coulomb TI
-    data_list = [extract_dHdl(xvg, T=300) for xvg in lambda_list]
-    forward, forward_error, backward, backward_error = [], [], [], []
-    num_points = 10
-    for i in range(1, num_points+1):
-        # Do the forward
-        slice = int(len(data_list[0])/num_points*i)
-        dHdl = concat([data[:slice] for data in data_list])
-        estimate = TI().fit(dHdl)
-        forward.append(estimate.delta_f_.iloc[0,-1])
-        forward_error.append(estimate.d_delta_f_.iloc[0,-1])
-        # Do the backward
-        dHdl = concat([data[-slice:] for data in data_list])
-        estimate = TI().fit(dHdl)
-        backward.append(estimate.delta_f_.iloc[0,-1])
-        backward_error.append(estimate.d_delta_f_.iloc[0,-1])
-    
-    ax = plot_convergence(pd.DataFrame({'Forward': forward, 'Forward_Error': forward_error, 'Backward': backward, 'Backward Error': backward_error}))
-    ax.figure.savefig('Convergence_TI.png')
+    #Forward and Backward Convergence for TI
+    convergence('TI')
 
 if estimator.lower() == 'mbar' or estimator.lower() == 'all':
     #Plot MBAR Overlap Matrix
@@ -151,24 +165,7 @@ if estimator.lower() == 'mbar' or estimator.lower() == 'all':
     ax.figure.savefig('Overlap_MBAR.png', bbox_inches='tight', pad_inches=0.0)
 
     #Forward and Backward Convergence for Coulomb MBAR
-    data_list = [extract_u_nk(xvg, T=300) for xvg in lambda_list]
-    forward, forward_error, backward, backward_error = [], [], [], []
-    num_points = 10
-    for i in range(1, num_points+1):
-        # Do the forward
-        slice = int(len(data_list[0])/num_points*i)
-        u_nk = concat([data[:slice] for data in data_list])
-        estimate = MBAR().fit(u_nk)
-        forward.append(estimate.delta_f_.iloc[0,-1])
-        forward_error.append(estimate.d_delta_f_.iloc[0,-1])
-        # Do the backward
-        u_nk = concat([data[-slice:] for data in data_list])
-        estimate = MBAR().fit(u_nk)
-        backward.append(estimate.delta_f_.iloc[0,-1])
-        backward_error.append(estimate.d_delta_f_.iloc[0,-1])
-    
-    ax = plot_convergence(pd.DataFrame({'Forward': forward, 'Forward_Error': forward_error, 'Backward': backward, 'Backward Error': backward_error}))
-    ax.figure.savefig('Convergence_MBAR.png')
+    convergence('MBAR')
 
 print(errors)
 df_est = pd.DataFrame({'Estimator': estimators, 'FE Estimate (kcal/mol)': estimates, 'Error (kcal/mol)': errors})
