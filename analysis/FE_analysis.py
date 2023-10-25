@@ -1,7 +1,7 @@
 import numpy as np
 from alchemlyb.parsing.gmx import extract_dHdl, extract_u_nk
 import pandas as pd
-from alchemlyb.estimators import TI, MBAR, BAR, AutoMBAR
+from alchemlyb.estimators import TI, MBAR, BAR
 from alchemlyb import concat
 from alchemlyb.visualisation import plot_mbar_overlap_matrix, plot_ti_dhdl, plot_convergence
 from alchemlyb.visualisation.dF_state import plot_dF_state
@@ -9,125 +9,125 @@ from alchemlyb.preprocessing.subsampling import statistical_inefficiency, equili
 from alchemlyb.postprocessors.units import to_kcalmol
 import argparse
 
+def get_estimate(df):
+    #Change labels to fit syntax for estimates dataframe
+    l = np.linspace(0, 1, num=len(df.index))
+    df.index = l
+    df.columns = l
+    est = np.round(df.loc[0, 1], decimals = 3)
+    return est
 #Import necessary arguments
-parser = argparse.ArgumentParser(description = 'Free Energy Analysis using MBAR, BAR, and TI with all dHdl files name dhdl#.xvg with # = lambda state')
-parser.add_argument('-n', required=True, type = int, help='Number of Lambda States')
-parser.add_argument('-t', required=False, type = bool, default = True, help='Should TI estimate be completed?')
-parser.add_argument('-m', required=False, type = bool, default = True, help='Should MBAR estimate be completed?')
-parser.add_argument('-a', required=False, type = bool, default = True, help='Should TI, MBAR, and BAR estimates be completed?')
+parser = argparse.ArgumentParser(description = 'Free Energy Analysis using MBAR, BAR, and TI')
+parser.add_argument('-f', required=False, type = str, default = 'dhdl.xvg', help='File path for xvg file ex: output/dhdl0.xvg and output/dhdl1.xvg--> output/dhdl')
+parser.add_argument('-n', required=True, type = int, help='Number of Replicates')
+parser.add_argument('-s', required=False, type = str, default = 'all', help='Which Estimators should be used? (TI or MBAR or BAR or all)')
+parser.add_argument('-t', required=False, type = float, default = 300, help='Temperature Simulations Run (K)')
 parser.add_argument('-r', required=True, type = float, help='Total Run Time(ps)')
 parser.add_argument('-e', required=True, type = float, help='Time at Which equilibrium was reached (ps)')
 
 #Save imported arguments to variables
 args = parser.parse_args()
-n_state = args.n
-TI_check = args.t
-MBAR_check = args.m
-ALL_check = args.a
+n_rep = args.n
 run_time = args.r
 eq_time = args.e
+file_path = args.f
+estimator = args.s
+temp = args.t
 
+#Prepare paths for dH/dl files
+file_path = file_path.split('.')[0]
+if n_rep > 1:
+    lambda_list = []
+    for i in range(n_rep):
+        lambda_list.append(f'{file_path}{i}.xvg')
+else:
+    lambda_list = [f'{file_path}.xvg']
 
-#load dH/dl files
-lambda_list = []
-for i in range(n_state):
-    lambda_list.append('dhdl' + str(i) + '.xvg')
-print(lambda_list)
-
-#Set Output File
-output = open('FE_analysis.txt', 'w')
-output_all = open('FE_analysis_all.txt', 'w')
-
-if TI_check == True or ALL_check == True:
-    #Load Data and Remove uncorrelated Samples
-    dHdl = concat([statistical_inefficiency(extract_dHdl(xvg, T=300), lower=eq_time, upper=run_time, step=2000) for xvg in lambda_list])
+#Empty arrays for estimates
+estimators, estimates, errors = [],[],[]
+if estimator.lower() == 'ti' or estimator.lower() == 'all':
+    #Load dHdl
+    dHdl = concat([statistical_inefficiency(extract_dHdl(xvg, T=300), lower=eq_time, upper=run_time) for xvg in lambda_list])
 
     #TI Free Energy Estimate
     ti = TI().fit(dHdl)
-    
+
     #Convert Units to Kcal/mol
-    ti_kcal = to_kcalmol(ti.delta_f_, T=300)
-    dti_kcal = to_kcalmol(ti.d_delta_f_, T=300)
+    ti_kcal = to_kcalmol(ti.delta_f_, T=temp)
+    dti_kcal = to_kcalmol(ti.d_delta_f_, T=temp)
+    ti_all = pd.concat([ti_kcal, dti_kcal])
+    ti_all.to_csv('TI.csv')
 
-    #Free energy difference for each lambda window
-    output_all.write('TI:\n')
-    output_all.write(str(ti_kcal) + '\n')
+    #Get estimates from df
+    TI_est = get_estimate(ti_kcal)
+    TI_est_err = get_estimate(dti_kcal)
     
-    #Change labels to fit syntax for estimates dataframe
-    j = n_state - 1
-    l = np.linspace(0, 1, num=n_state)
-    df_ti = ti_kcal
-    df_ti.index = l
-    df_ti.columns = l
-    TI_est = np.round(df_ti.loc[0, 1], decimals = 3)
-    
-    #Change labels for error estimates
-    df_ti_err = dti_kcal
-    df_ti_err.index = l
-    df_ti_err.columns = l
-    TI_est_err = np.round(df_ti_err.loc[0, 1], decimals = 3)
+    estimators.append(TI)
+    estimates.append(TI_est)
+    errors.append(TI_est_err)
 
-    #Output Free Energy Differnece
-    output.write('TI Estimate: ' + str(TI_est) + ' +/- ' + str(TI_est_err) + '\n')
-
-    #Output TI Error for all lambdas
-    output_all.write('TI Free Energy Error\n')
-    output_all.write(str(dti_kcal) + '\n')
-
-output.write('---------------------------------------------\n')
-if MBAR_check == True or ALL_check == True:
+if estimator.lower() == 'mbar' or estimator.lower() == 'bar' or estimator.lower() == 'all':
    #Obtain u_nk reduced potentials and remove uncorrelated samples
-    u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=run_time, step=2000) for xvg in lambda_list])
+    u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=run_time) for xvg in lambda_list])
 
-    #MBAR FE Estimates
-    mbar = AutoMBAR(relative_tolerance=1e-04).fit(u_nk)
-    bar = BAR().fit(u_nk)
+    if estimator.lower() == 'mbar' or estimator.lower() == 'all':
+        #MBAR FE Estimates
+        mbar = MBAR(relative_tolerance=1e-04).fit(u_nk)
 
-    #Convert Units to Kcal/mol
-    mbar_kcal = to_kcalmol(mbar.delta_f_, T=300)
-    dmbar_kcal = to_kcalmol(mbar.d_delta_f_, T=300)
+        #Convert Units to Kcal/mol
+        mbar_kcal = to_kcalmol(mbar.delta_f_, T=temp)
+        dmbar_kcal = to_kcalmol(mbar.d_delta_f_, T=temp)
+        mbar_all = pd.concat([mbar_kcal, dmbar_kcal])
+        mbar_all.to_csv('MBAR.csv')
 
-    #Free energy difference for each lambda window
-    output_all.write('MBAR:\n')
-    output_all.write(str(mbar_kcal) + '\n')
+        #Get estimates from df
+        MBAR_est = get_estimate(mbar_kcal)
+        MBAR_est_err = get_estimate(dmbar_kcal)
 
-    #Change labels to fit syntax for estimates dataframe
-    j = n_state - 1
-    l = np.linspace(0, 1, num=n_state)
-    df_mbar = mbar_kcal
-    df_mbar.index = l
-    df_mbar.columns = l
-    MBAR_est = np.round(df_mbar.loc[0, 1], decimals = 3)
-    
-    #Change labels for error estimates
-    df_mbar_err = dmbar_kcal
-    df_mbar_err.index = l
-    df_mbar_err.columns = l
-    MBAR_est_err = np.round(df_mbar_err.loc[0, 1], decimals = 3)
+        #Add to array
+        estimators.append('MBAR')
+        estimates.append(MBAR_est)
+        errors.append(MBAR_est_err)
 
-    #Output Free Energy Differnece
-    output.write('MBAR Estimate: ' + str(MBAR_est) + ' +/- ' + str(MBAR_est_err) + '\n')
+    if estimator.lower() == 'bar' or estimator.lower() == 'all':
+        #BAR FE Estimates
+        bar = BAR().fit(u_nk)
 
-#Close files
-output.close()
+        #Convert Units to Kcal/mol
+        bar_kcal = to_kcalmol(bar.delta_f_, T=temp)
+        dbar_kcal = to_kcalmol(bar.d_delta_f_, T=temp)
+        bar_all = pd.concat([bar_kcal, dbar_kcal])
+        bar_all.to_csv('BAR.csv')
+
+        #Convert Units to Kcal/mol
+        bar_kcal = to_kcalmol(bar.delta_f_, T=temp)
+        dbar_kcal = to_kcalmol(bar.d_delta_f_, T=temp)
+        bar_all = pd.concat([bar_kcal, dbar_kcal])
+        bar_all.to_csv('BAR.csv')
+
+        #Get estimates from df
+        BAR_est = get_estimate(bar_kcal)
+        BAR_est_err = get_estimate(dbar_kcal)
+
+        #Add to array
+        estimators.append('BAR')
+        estimates.append(BAR_est)
+        errors.append(BAR_est_err)
 
 #Compare different Estimators
-if ALL_check == True:
-    estimators = [ti, mbar, bar,]
-    fig = plot_dF_state(estimators, orientation='portrait')
+if estimator.lower() == 'all':
+    ests = [ti, mbar, bar,]
+    fig = plot_dF_state(ests, orientation='portrait')
     fig.savefig('dF_state.png', bbox_inches='tight')
 
 #Error and Analysis
-if TI_check == True or ALL_check == True:
+if estimator.lower() == 'ti' or estimator.lower() == 'all':
     #Plot dhdl of the TI
     ax = plot_ti_dhdl([ti])
     ax.figure.savefig('dhdl_TI.png')
     #Forward and Backward Convergence for Coulomb TI
     data_list = [extract_dHdl(xvg, T=300) for xvg in lambda_list]
-    forward = []
-    forward_error = []
-    backward = []
-    backward_error = []
+    forward, forward_error, backward, backward_error = [], [], [], []
     num_points = 10
     for i in range(1, num_points+1):
         # Do the forward
@@ -142,38 +142,34 @@ if TI_check == True or ALL_check == True:
         backward.append(estimate.delta_f_.iloc[0,-1])
         backward_error.append(estimate.d_delta_f_.iloc[0,-1])
     
-    ax = plot_convergence(forward, forward_error, backward, backward_error)
+    ax = plot_convergence(pd.DataFrame({'Forward': forward, 'Forward_Error': forward_error, 'Backward': backward, 'Backward Error': backward_error}))
     ax.figure.savefig('Convergence_TI.png')
 
-if MBAR_check == True or ALL_check == True:
-    #Output MBAR error for all lambdas
-    output_all.write('MBAR Free Energy Error\n')
-    output_all.write(str(mbar.d_delta_f_) + '\n')
+if estimator.lower() == 'mbar' or estimator.lower() == 'all':
     #Plot MBAR Overlap Matrix
     ax = plot_mbar_overlap_matrix(mbar.overlap_matrix)
     ax.figure.savefig('Overlap_MBAR.png', bbox_inches='tight', pad_inches=0.0)
 
     #Forward and Backward Convergence for Coulomb MBAR
     data_list = [extract_u_nk(xvg, T=300) for xvg in lambda_list]
-    forward = []
-    forward_error = []
-    backward = []
-    backward_error = []
+    forward, forward_error, backward, backward_error = [], [], [], []
     num_points = 10
     for i in range(1, num_points+1):
         # Do the forward
         slice = int(len(data_list[0])/num_points*i)
         u_nk = concat([data[:slice] for data in data_list])
-        estimate = AutoMBAR().fit(u_nk)
+        estimate = MBAR().fit(u_nk)
         forward.append(estimate.delta_f_.iloc[0,-1])
         forward_error.append(estimate.d_delta_f_.iloc[0,-1])
         # Do the backward
         u_nk = concat([data[-slice:] for data in data_list])
-        estimate = AutoMBAR().fit(u_nk)
+        estimate = MBAR().fit(u_nk)
         backward.append(estimate.delta_f_.iloc[0,-1])
         backward_error.append(estimate.d_delta_f_.iloc[0,-1])
     
-    ax = plot_convergence(forward, forward_error, backward, backward_error)
+    ax = plot_convergence(pd.DataFrame({'Forward': forward, 'Forward_Error': forward_error, 'Backward': backward, 'Backward Error': backward_error}))
     ax.figure.savefig('Convergence_MBAR.png')
 
-
+print(errors)
+df_est = pd.DataFrame({'Estimator': estimators, 'FE Estimate (kcal/mol)': estimates, 'Error (kcal/mol)': errors})
+df_est.to_csv('FE_estimates.csv')
