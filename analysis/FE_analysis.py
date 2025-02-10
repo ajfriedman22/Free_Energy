@@ -49,8 +49,8 @@ def convergence(estimator):
 
 #Import necessary arguments
 parser = argparse.ArgumentParser(description = 'Free Energy Analysis using MBAR, BAR, and TI')
-parser.add_argument('-f', required=False, type = str, default = 'dhdl.xvg', help='File path for xvg file ex: output/dhdl0.xvg and output/dhdl1.xvg--> output/dhdl')
-parser.add_argument('-n', required=True, type = int, help='Number of Replicates')
+parser.add_argument('-f', required=False, nargs='+', type = str, default = 'dhdl.xvg', help='File path for xvg file ex: output/dhdl0.xvg and output/dhdl1.xvg--> output/dhdl')
+parser.add_argument('-n', required=False, type = int, default = 1, help='Number of Replicates')
 parser.add_argument('-s', required=False, type = str, default = 'all', help='Which Estimators should be used? (TI or MBAR or BAR or all)')
 parser.add_argument('-t', required=False, type = float, default = 300, help='Temperature Simulations Run (K)')
 parser.add_argument('-r', required=True, type = float, help='Total Run Time(ps)')
@@ -65,14 +65,21 @@ file_path = args.f
 estimator = args.s
 temp = args.t
 
+if len(file_path) > 1 and n_rep > 1:
+    raise Exception('Multiple paths is only supported for 1 replicate per path')
+
 #Prepare paths for dH/dl files
-file_path = file_path.split('.')[0]
+for i in range(len(file_path)):
+    if '.xvg' in file_path[i]:
+        file_path[i] = file_path[i].replace('.xvg','')
+
+lambda_list = []
 if n_rep > 1:
-    lambda_list = []
     for i in range(n_rep):
-        lambda_list.append(f'{file_path}{i}.xvg')
+        lambda_list.append(f'{file_path[0]}{i}.xvg')
 else:
-    lambda_list = [f'{file_path}.xvg']
+    for path in file_path:
+        lambda_list.append(f'{path}.xvg')
 
 #Empty arrays for estimates
 estimators, estimates, errors = [],[],[]
@@ -167,6 +174,5 @@ if estimator.lower() == 'mbar' or estimator.lower() == 'all':
     #Forward and Backward Convergence for Coulomb MBAR
     convergence('MBAR')
 
-print(errors)
 df_est = pd.DataFrame({'Estimator': estimators, 'FE Estimate (kcal/mol)': estimates, 'Error (kcal/mol)': errors})
 df_est.to_csv('FE_estimates.csv')
