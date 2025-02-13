@@ -10,7 +10,7 @@ import argparse
 import mdtraj as md
 
 def convergence(name, lambda_list):
-    data_list = [statistical_inefficiency(extract_u_nk(xvg, T=temp), lower=eq_time, upper=run_time) for xvg in lambda_list]
+    data_list = [statistical_inefficiency(extract_u_nk(xvg, T=temp)) for xvg in lambda_list]
     est = MBAR()
             
     forward, forward_error, backward, backward_error = [], [], [], []
@@ -45,7 +45,7 @@ def get_estimate(df):
 
 def get_MBAR(lambda_list, name):
     #Obtain u_nk reduced potentials and remove uncorrelated samples
-    u_nk = concat([statistical_inefficiency(extract_u_nk(xvg, T=300), lower=eq_time, upper=run_time) for xvg in lambda_list])
+    u_nk = concat([extract_u_nk(xvg, T=300) for xvg in lambda_list])
 
     #MBAR FE Estimates
     mbar = MBAR(relative_tolerance=1e-04).fit(u_nk)
@@ -63,7 +63,7 @@ def get_MBAR(lambda_list, name):
     ax.figure.savefig(f'Overlap_{name}.png', bbox_inches='tight', pad_inches=0.0)
 
     #Forward and Backward Convergence for Coulomb MBAR
-    convergence(name)
+    #convergence(name, lambda_list)
 
     return MBAR_est, MBAR_est_err
 
@@ -74,16 +74,12 @@ parser.add_argument('-s', required=True, nargs='+', type = str, help='Simulation
 parser.add_argument('-f', required=False, default='./', help='base file path storing simulations')
 parser.add_argument('-i', required=False, type = int, default = 1, help='Total Number of Iterations')
 parser.add_argument('-t', required=False, type = float, default = 300, help='Temperature Simulations Run (K)')
-parser.add_argument('-r', required=True, type = float, help='Total Run Time(ps)')
-parser.add_argument('-e', required=False, type = float, defualt = 0, help='Time at Which equilibrium was reached (ps)')
 
 #Save imported arguments to variables
 args = parser.parse_args()
 lig_names = args.ln
 sim_num = args.s
 n_iter = args.i
-run_time = args.r
-eq_time = args.e
 file_path = args.f
 temp = args.t
 
@@ -92,8 +88,9 @@ output_df = pd.DataFrame()
 for s in range(len(lig_names)):
     #Determine which iterations are in which pocket
     pocketA, pocketB = [],[]
+    track_iter_B = []
     for i in range(n_iter):
-        traj = md.load(f'{file_path}/sim_{sim_num[s]}/iteration_{i}/traj.trr', top=f'{file_path}/{lig_names}.gro')
+        traj = md.load(f'{file_path}/sim_{sim_num[s]}/iteration_{i}/traj.trr', top=f'{file_path}/{lig_names[s]}.gro')
         traj.remove_solvent()
 
         #Select atom pairs
@@ -105,7 +102,7 @@ for s in range(len(lig_names)):
 
         dist = md.compute_distances(traj, [[c4[0], check1[0]], [c4[0], check2[0]]])
 
-        pocketB_both = 0, 0, 0
+        pocketB_both = 0
         for t in range(traj.n_frames):
             if dist[t,0] < 1.0 and dist[t,1] < 0.85:
                 pocketB_both += 1
@@ -113,10 +110,14 @@ for s in range(len(lig_names)):
         per = pocketB_both/traj.n_frames
         if per > 0.90:
             pocketB.append(f'{file_path}/sim_{s}/iteration_{i}/dhdl.xvg')
+            track_iter_B.append(i)
         else:
             pocketA.append(f'{file_path}/sim_{s}/iteration_{i}/dhdl.xvg')
+    np.savetxt(f'pockeB_{lig_names[s]}.txt', np.array(track_iter_B, dtype=float))
 
     pA_est, pA_err = get_MBAR(pocketA, f'{lig_names[s]}_pocketA')
-    pB_est, pB_err = get_MBAR(pocketB, f'{lig_names[s]}_pocketA')
+    pB_est, pB_err = get_MBAR(pocketB, f'{lig_names[s]}_pocketB')
     
     df = pd.DataFrame({'Ligand': lig_names[s], 'Free Energy Estimate': [pA_est, pB_est], 'Free Energy Error': [pA_err, pB_err], 'Pocket': ['A', 'B']})
+    output_df - pd.concat([output_df, df])
+output_df.to_csv('FE_estimate.csv')
