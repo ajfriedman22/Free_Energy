@@ -23,40 +23,42 @@ sim_num = args.s
 num_iter = args.i
 dir_path = args.f
 
-if not os.path.exists('Pocket_occupancy_per_iter.csv'):
-    per = []
-    iter_df = pd.DataFrame()
-    for g in tqdm(range(len(gro_list))):
+if os.path.exists('Pocket_occupancy_per_iter.csv'):
+    prev_df = pd.read_csv('Pocket_occupancy_per_iter.csv', index_col=0)
+iter_df = pd.DataFrame()
+    
+per = []
+for g in tqdm(range(len(gro_list))):
+    if 'prev_df' in locals() and lig_names[g] in prev_df['Ligands']:
+        per_iter = prev_df[prev_df['Ligands'] == lig_names[g]]['Percent Pocket B both'].to_list()
+    else:
         per_iter = []
-        tot_pocketB = 0
-        both_count = 0 
-        for i in range(num_iter):
-            traj = md.load(f'{dir_path}/sim_{sim_num[g]}/iteration_{i}/traj.trr', top=gro_list[g])
-            traj.remove_solvent()
+    print(len(per_iter))
+    for i in range(len(per_iter), num_iter):
+        traj = md.load(f'{dir_path}/sim_{sim_num[g]}/iteration_{i}/traj.trr', top=gro_list[g])
+        traj.remove_solvent()
 
-            #Select atom pairs
-            c4 = traj.topology.select('name C4')
-            if len(c4) == 0:
-                c4 = traj.topology.select('name DC4')
-            check1 = traj.topology.select('resid 271 and name CD')
-            check2 = traj.topology.select('resid 299 and name CB')
+        #Select atom pairs
+        c4 = traj.topology.select('name C4')
+        if len(c4) == 0:
+            c4 = traj.topology.select('name DC4')
+        check1 = traj.topology.select('resid 271 and name CD')
+        check2 = traj.topology.select('resid 299 and name CB')
 
-            dist = md.compute_distances(traj, [[c4[0], check1[0]], [c4[0], check2[0]]])
+        dist = md.compute_distances(traj, [[c4[0], check1[0]], [c4[0], check2[0]]])
 
-            pocketB = 0
-            for t in range(traj.n_frames):
-                if dist[t,0] < 1.0 and dist[t,1] < 0.85:
-                    pocketB += 1
-            tot_pocketB += pocketB
+        pocketB = 0
+        for t in range(traj.n_frames):
+            if dist[t,0] < 1.0 and dist[t,1] < 0.85:
+                pocketB += 1
 
-            per_iter.append(100*pocketB/traj.n_frames)
-        per.append(100*tot_pocketB/(traj.n_frames*num_iter))
-        df = pd.DataFrame({'Ligands': lig_names[g], 'Percent Pocket B both': per_iter})
-        iter_df = pd.concat([iter_df, df])
-
-    iter_df.to_csv('Pocket_occupancy_per_iter.csv')
-else:
-    iter_df = pd.read_csv('Pocket_occupancy_per_iter.csv', index_col=0)
+        per_iter.append(100*pocketB/traj.n_frames)
+    print(sum(per_iter)/num_iter)
+    per.append(sum(per_iter)/num_iter)
+    df = pd.DataFrame({'Ligands': lig_names[g], 'Percent Pocket B both': per_iter})
+    iter_df = pd.concat([iter_df, df])
+exit()
+iter_df.to_csv('Pocket_occupancy_per_iter.csv')
 
 df_time = pd.DataFrame()
 sample_both_pockets, all_per = np.zeros(len(lig_names)), np.zeros(len(lig_names))
