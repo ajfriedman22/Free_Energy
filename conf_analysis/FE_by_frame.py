@@ -8,6 +8,7 @@ from alchemlyb.preprocessing.subsampling import statistical_inefficiency
 from alchemlyb.postprocessors.units import to_kcalmol
 import argparse
 import mdtraj as md
+from tqdm import tqdm
 
 def get_estimate(df):
     #Change labels to fit syntax for estimates dataframe
@@ -17,9 +18,12 @@ def get_estimate(df):
     est = np.round(df.loc[0, 1], decimals = 3)
     return est
 
-def get_MBAR(u_nk, name):
+def get_MBAR(u_nk, name, num_points):
     #MBAR FE Estimates
-    mbar = MBAR(relative_tolerance=1e-04).fit(u_nk)
+    try:
+        mbar = MBAR(relative_tolerance=1e-04).fit(u_nk)
+    except:
+        return None, None, None, None
 
     #Convert Units to Kcal/mol
     mbar_kcal = to_kcalmol(mbar.delta_f_, T=temp)
@@ -32,8 +36,26 @@ def get_MBAR(u_nk, name):
     #Plot MBAR Overlap Matrix
     ax = plot_mbar_overlap_matrix(mbar.overlap_matrix)
     ax.figure.savefig(f'Overlap_{name}.png', bbox_inches='tight', pad_inches=0.0)
+    
+    #Get the estimates over time
+    forward, forward_error = [], []
+    start=0
+    for i in range(1, num_points+1):
+        end = int((len(u_nk.index)/num_points)*i)
+        try:
+            # Do the forward
+            data = u_nk.iloc[:end]
+            estimate = MBAR(relative_tolerance=1e-04).fit(data)
+            #Add estimates
+            forward.append(get_estimate(estimate.delta_f_))
+            forward_error.append(get_estimate(estimate.d_delta_f_))
 
-    return MBAR_est, MBAR_est_err
+        except:
+            forward.append(None)
+            forward_error.append(None)
+        start=end
+
+    return MBAR_est, MBAR_est_err, forward, forward_error
 
 #Import necessary arguments
 parser = argparse.ArgumentParser(description = 'Free Energy Analysis using MBAR Divided by Pocket for MT-REXEE')
@@ -56,6 +78,7 @@ time_step = args.dt
 # Perform analysis for all ligand names listed
 output_df = pd.DataFrame()
 drop_df = pd.DataFrame()
+time_df = pd.DataFrame()
 for s in range(len(lig_names)):
     #Determine which iterations are in which pocket
     pocketA, pocketB = [],[]
@@ -63,9 +86,14 @@ for s in range(len(lig_names)):
     track_frame_drop = []
     u_nk_B = pd.DataFrame()
     u_nk_A = pd.DataFrame()
-    for i in range(n_iter):
+    for i in tqdm(range(n_iter)):
         traj = md.load(f'{file_path}/sim_{sim_num[s]}/iteration_{i}/traj.trr', top=f'{file_path}/{lig_names[s]}.gro')
         traj.remove_solvent()
+        
+        if i == 0:
+            # Determine trajectory length
+            traj_length = int(time_step*n_iter*traj.n_frames/1000)
+            num_points = int(traj_length/2)-1
 
         #Select atom pairs
         c4 = traj.topology.select('name C4')
@@ -84,8 +112,8 @@ for s in range(len(lig_names)):
             elif dist[t,0] > 1.0 and dist[t,1] > 0.85:
                 A_frame.append(t)
         #Obtain u_nk reduced potentials
-        full_u_nk = concat([extract_u_nk(xvg, T=300) for xvg in f'{file_path}/sim_{sim_num[s]}/iteration_{i}/dhdl.xvg'])
-        freq_dhdl = full_u_nk['time'].values[1]
+        full_u_nk = extract_u_nk(f'{file_path}/sim_{sim_num[s]}/iteration_{i}/dhdl.xvg', T=300)
+        freq_dhdl = float(full_u_nk.index.get_level_values('time').values[1])
 
         #Extract frames in each pocket
         B_time, A_time = [], []
@@ -93,29 +121,37 @@ for s in range(len(lig_names)):
         for t in range(traj.n_frames-1):
             if t in B_frame and t+1 in B_frame:
                 for x in np.arange(t*time_step, (t+1)*time_step, freq_dhdl):
-                    B_time.append(x)
+                    B_time.append(np.round(x, 1))
             elif t in A_frame and t+1 in A_frame:
                 for x in np.arange(t*time_step, (t+1)*time_step, freq_dhdl):
-                    A_time.append(x)
+                    A_time.append(np.round(x, 1))
+            elif t in B_frame:
+                for x in np.arange((t-(time_step/4))*time_step, (t+(time_step/4))*time_step, freq_dhdl):
+                    B_time.append(np.round(x, 1))
             else:
                 num_frame_drop += time_step/freq_dhdl
-        track_frame_drop.append(num_frame_drop)
-
         
+        track_frame_drop.append(num_frame_drop)
         if len(B_time) != 0:
-            u_nk_sele_B = full_u_nk[full_u_nk['time'].isin(B_time)]
+            u_nk_sele_B = full_u_nk[full_u_nk.index.get_level_values('time').isin(B_time)]
             u_nk_B = pd.concat([u_nk_B, u_nk_sele_B])
         if len(A_time) != 0:
-            u_nk_sele_A = full_u_nk[full_u_nk['time'].isin(A_time)]
-            u_nk_A = pd.concat([u_nk_B, u_nk_sele_B])
-    pA_est, pA_err = get_MBAR(u_nk_A, f'{lig_names[s]}_pocketA')
-    pB_est, pB_err = get_MBAR(u_nk_B, f'{lig_names[s]}_pocketB')
+            u_nk_sele_A = full_u_nk[full_u_nk.index.get_level_values('time').isin(A_time)]
+            u_nk_A = pd.concat([u_nk_A, u_nk_sele_A])
+    
+    pA_est, pA_err, pA_est_time, pA_err_time = get_MBAR(u_nk_A, f'{lig_names[s]}_pocketA', num_points)
+    pB_est, pB_err, pB_est_time, pB_err_time = get_MBAR(u_nk_B, f'{lig_names[s]}_pocketB', num_points)
     
     df = pd.DataFrame({'Ligand': lig_names[s], 'Free Energy Estimate': [pA_est, pB_est], 'Free Energy Error': [pA_err, pB_err], 'Pocket': ['A', 'B']})
-    output_df - pd.concat([output_df, df])
+    output_df = pd.concat([output_df, df])
 
     df = pd.DataFrame({'Ligand': lig_names[s], '# of Dropped Frames': track_frame_drop})
     drop_df = pd.concat([drop_df, df])
-output_df.to_csv('FE_estimate.csv')
-drop_df.to_csv('Frames_dropped_FE_by_frame.csv')
 
+    df1 = pd.DataFrame({'Ligand': lig_name[s],  'Free Energy Estimate': pA_est_time, 'Free Energy Error': pA_err_time, 'Pocket': 'A', 'Time': np.arange(2, int(traj_length/(num_points+1))*(num_points+1), step=2)})
+    df2 = pd.DataFrame({'Ligand': lig_name[s],  'Free Energy Estimate': pB_est_time, 'Free Energy Error': pB_err_time, 'Pocket': 'B', 'Time': np.arange(2, int(traj_length/(num_points+1))*(num_points+1), step=2)})
+    time_df = pd.concat([time_df, df1, df2])
+
+output_df.to_csv('FE_estimate_by_frame.csv')
+drop_df.to_csv('Frames_dropped_FE_by_frame.csv')
+time_df.to_csv('FE_estimate_by_frame_over_time.csv')
